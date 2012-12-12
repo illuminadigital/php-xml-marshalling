@@ -183,7 +183,7 @@ class ClassMetadata extends ClassMetadataInfo
         }
     }
 
-        /**
+    /**
      * Determines which fields get serialized.
      *
      * It is only serialized what is necessary for best unserialization performance.
@@ -233,23 +233,6 @@ class ClassMetadata extends ClassMetadataInfo
     }
 
     /**
-     * Restores some state that can not be serialized/unserialized.
-     *
-     * @return void
-     */
-    public function __wakeup()
-    {
-        // Restore ReflectionClass and properties
-        $this->reflClass = new \ReflectionClass($this->name);
-
-        foreach ($this->fieldMappings as $field => $mapping) {
-            $reflField = $this->reflClass->getProperty($field);
-            $reflField->setAccessible(true);
-            $this->reflFields[$field] = $reflField;
-        }
-    }
-
-    /**
      * Creates a new instance of the mapped class, without invoking the constructor.
      *
      * @return object
@@ -261,4 +244,40 @@ class ClassMetadata extends ClassMetadataInfo
         }
         return clone $this->prototype;
     }
+    
+    /**
+     * Restores some state that can not be serialized/unserialized.
+     *
+     * @param \Doctrine\Common\Persistence\Mapping\ReflectionService $reflService
+     * @return void
+     */
+    public function wakeupReflection($reflService)
+    {
+        // Restore ReflectionClass and properties
+        $this->reflClass = $reflService->getClass($this->name);
+    
+        foreach ($this->fieldMappings as $field => $mapping) {
+            $this->reflFields[$field] = isset($mapping['declared'])
+            ? $reflService->getAccessibleProperty($mapping['declared'], $field)
+            : $reflService->getAccessibleProperty($this->name, $field);
+        }
+    }
+    
+    /**
+     * Initializes a new ClassMetadata instance that will hold the object-relational mapping
+     * metadata of the class with the given name.
+     *
+     * @param \Doctrine\Common\Persistence\Mapping\ReflectionService $reflService The reflection service.
+     */
+    public function initializeReflection($reflService)
+    {
+        $this->reflClass = $reflService->getClass($this->name);
+        $this->namespace = $reflService->getClassNamespace($this->name);
+        $this->xmlName   = Inflector::xmlize($this->reflClass->getShortName());
+    
+        if ($this->reflClass) {
+            $this->name = $this->rootXmlEntityName = $this->reflClass->getName();
+        }
+    }
+    
 }

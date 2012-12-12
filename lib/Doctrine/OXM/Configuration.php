@@ -23,6 +23,7 @@ use Doctrine\Common\Cache\Cache;
 use Doctrine\OXM\Mapping\Driver\Driver;
 use Doctrine\OXM\Mapping\Driver\AnnotationDriver;
 use Doctrine\Common\Annotations\AnnotationReader;
+use Doctrine\Common\Annotations\SimpleAnnotationReader;
 use Doctrine\Common\Annotations\AnnotationRegistry;
 use Doctrine\Common\Cache\ArrayCache;
 
@@ -201,6 +202,14 @@ class Configuration
             AnnotationRegistry::registerFile(__DIR__ . '/Mapping/Driver/DoctrineAnnotations.php');
 
             $reader = new AnnotationReader();
+            $reader = new \Doctrine\Common\Annotations\CachedReader($reader, new ArrayCache());
+        } else if (version_compare(\Doctrine\Common\Version::VERSION, '2.3.0-DEV', '>=')) {
+            // Register the ORM Annotations in the AnnotationRegistry
+            // Done manually according to MongoDB ODM but that breaks existing code quickly
+            AnnotationRegistry::registerFile(__DIR__ . '/Mapping/Driver/DoctrineAnnotations.php');
+
+            $reader = new SimpleAnnotationReader();
+            $reader->addNamespace('Doctrine\\OXM\\Mapping');
             $reader = new \Doctrine\Common\Annotations\CachedReader($reader, new ArrayCache());
         } else if (version_compare(\Doctrine\Common\Version::VERSION, '2.1.0-DEV', '>=')) {
             // Register the ORM Annotations in the AnnotationRegistry

@@ -25,6 +25,7 @@ use Doctrine\OXM\Util\Inflector;
 use Doctrine\OXM\Mapping\ClassMetadataInfo;
 use Doctrine\OXM\Mapping\MappingException;
 use Doctrine\OXM\Mapping\Driver\Driver as DriverInterface;
+use Doctrine\Common\Annotations\AnnotationRegistry;
 
 /**
  * The AnnotationDriver reads the mapping metadata from docblock annotations.
@@ -379,5 +380,13 @@ class AnnotationDriver implements DriverInterface
             $reader->setDefaultAnnotationNamespace('Doctrine\OXM\Mapping\\');
         }
         return new self($reader, $paths);
+    }
+    
+    /**
+     * Loads the annotation classes
+     */
+    public static function registerAnnotationClasses()
+    {
+        AnnotationRegistry::registerFile(__DIR__ . '/DoctrineAnnotations.php');
     }
 }

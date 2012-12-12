@@ -44,7 +44,8 @@ class OxmTestCase extends \PHPUnit_Framework_TestCase
         }
 
         $config->setMetadataDriverImpl($config->newDefaultAnnotationDriver(array(__DIR__ .'/OXM/Entities')));
-
+        \Doctrine\OXM\Mapping\Driver\AnnotationDriver::registerAnnotationClasses();
+        
         $storage = new \Doctrine\OXM\Storage\FileSystemStorage(__DIR__ .'/Workspace');
         
         $config->setProxyDir(__DIR__ . '/Proxies');
@@ -88,6 +89,8 @@ class OxmTestCase extends \PHPUnit_Framework_TestCase
         }
 
         $config->setMetadataDriverImpl($config->newDefaultAnnotationDriver($paths));
+        \Doctrine\OXM\Mapping\Driver\AnnotationDriver::registerAnnotationClasses();
+        
         $config->setMetadataCacheImpl(new \Doctrine\Common\Cache\ArrayCache());
 
         $metadataFactory = new \Doctrine\OXM\Mapping\ClassMetadataFactory($config);

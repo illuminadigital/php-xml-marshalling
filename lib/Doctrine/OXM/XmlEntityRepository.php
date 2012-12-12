@@ -90,6 +90,42 @@ class XmlEntityRepository implements ObjectRepository
     public function findAll()
     {
         // TODO: Implement findAll() method.
+        // Hackety Hack
+        $storage = $this->xem->getStorage();
+        $storagePath = $storage->getStoragePath();
+        
+        $storageDir = $storagePath . DIRECTORY_SEPARATOR . str_replace('\\', DIRECTORY_SEPARATOR, $this->getClassName());
+        
+        $dirHandle = opendir($storageDir);
+        
+        $ids = array();
+        
+        $pattern = '*.' . $storage->getFileExtension();
+        
+        while ($handle = readdir($dirHandle))
+        {
+            if (fnmatch($pattern, $handle))
+            {
+                $ids[] = basename($handle, '.' . $storage->getFileExtension());
+            }
+        }
+        
+        $objects = array();
+        
+        if ( ! empty($ids) )
+        {
+            foreach ($ids as $id)
+            {
+                $object = $this->find($id);
+                
+                if ($object)
+                {
+                    $objects[] = $object;
+                }
+            }
+        }
+        
+        return $objects;
     }
 
     /**
@@ -131,4 +167,8 @@ class XmlEntityRepository implements ObjectRepository
         }
     }
 
+    public function getClassName()
+    {
+        return $this->entityName;
+    }
 }

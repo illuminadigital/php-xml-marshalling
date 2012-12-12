@@ -403,8 +403,6 @@ class XmlEntityManager implements ObjectManager
         return $this->getRepository($entityName)->find($identifier, $lockMode, $lockVersion);
     }
 
-
-
     /**
      * Gets the UnitOfWork used by the EntityManager to coordinate operations.
      *
@@ -415,5 +413,23 @@ class XmlEntityManager implements ObjectManager
         return $this->unitOfWork;
     }
 
-
+    /**
+     * {@inheritDoc}
+     */
+    public function initializeObject($object)
+    {
+        if ($obj instanceof PersistentCollection) {
+            $obj->initialize();
+        } else if ($obj instanceof Proxy\Proxy) {
+            $obj->__doctrineLoad__();
+        }
+    }
+    
+    /**
+     * {@inheritDoc}
+     */
+    public function contains($object)
+    {
+        throw new \BadMethodCallException('Not implemented');
+    }
 }
