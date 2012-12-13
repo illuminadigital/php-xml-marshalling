@@ -2,3 +2,6 @@
 .project
 .buildpath
 .settings
+.idea/
+build/
+phpunit.xml

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit convertErrorsToExceptions="true"
+         convertNoticesToExceptions="true"
+         convertWarningsToExceptions="true"
+         colors="true"
+         bootstrap="tests/bootstrap.php">
+
+    <filter>
+        <blacklist>
+            <directory>lib/vendor</directory>
+        </blacklist>
+    </filter>
+
+    <testsuites>
+        <testsuite name="Doctrine OXM Test Suite">
+            <directory>./tests/Doctrine/</directory>
+        </testsuite>
+    </testsuites>
+
+    <filter>
+        <whitelist>
+            <directory suffix=".php">./lib/Doctrine/OXM</directory>
+        </whitelist>
+    </filter>
+</phpunit>
