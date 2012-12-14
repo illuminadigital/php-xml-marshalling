@@ -110,7 +110,7 @@ class XmlDriver extends AbstractFileDriver
                     $mapping['direct'] = (boolean)$fieldMapping['direct'];
                 }
 
-                if (isset($fieldMapping['nulable'])) {
+                if (isset($fieldMapping['nullable'])) {
                     $mapping['nullable'] = (boolean)$fieldMapping['nullable'];
                 }
 
