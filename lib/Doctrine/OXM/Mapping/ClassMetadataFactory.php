@@ -74,6 +74,13 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
     private $xmlToClassMap = array();
 
     /**
+     * Keys are mapped xml wrapper names
+     *
+     * @var array
+     */
+    private $wrapperXmlToClassMap = array();
+
+    /**
      * @param Configuration $configuration
      * @param EventManager|null $evm
      * @return null
@@ -99,6 +106,23 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
         $this->getAllMetadata();
 
         return $this->xmlToClassMap;
+    }
+
+    /**
+     * Preloads all metadata and returns an array of all known wrapper node types
+     *
+     * @return array
+     */
+    public function getAllWrapperXmlNodes()
+    {
+        if (!$this->initialized) {
+            $this->initialize();
+        }
+        
+        // Load all metadata
+        $this->getAllMetadata();
+
+        return $this->wrapperXmlToClassMap;
     }
 
     /**
@@ -142,8 +166,28 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
         $class->wakeupReflection($reflService);
         $this->completeMappingTypeValidation($class->getName(), $class);
     
-        if ( ! $class->isMappedSuperclass) {
+        if ( $this->isEntity($class)) {
             $this->xmlToClassMap[$class->getXmlName()] = $class->getName();
+
+            foreach ($class->getFieldMappings() as $fieldMapping)
+            {
+                if ( ! empty($fieldMapping['wrapper'] ) )
+                {
+                    $wrapperXmlName = $fieldMapping['wrapper'];
+                    
+                    $types = Type::getTypesMap();
+                    
+                    $type = (string) $fieldMapping['type'];
+                    
+                    if ( isset($types[$type])) {
+                    	$this->wrapperXmlToClassMap[$wrapperXmlName][$class->getXmlName()] = NULL;
+                    }
+                    else
+                    {
+                    	$this->wrapperXmlToClassMap[$wrapperXmlName][$class->getXmlName()] = $fieldMapping['type'];                    	
+                    }
+                }
+            }
         }
     }
 
@@ -220,6 +264,66 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
     }
 */
     /**
+     * Loads the metadata of the class in question and all it's ancestors whose metadata
+     * is still not loaded.
+     * 
+     * We can't use the version from AbstractClassMetadataFactory as that assumes the abstract classes should
+     * not be in the list. However, the test suite says that you should be able to use the abstract classes
+     * as markers, replacing them with one of the concrete implementations. That means the abstract classes 
+     * must show in the list of parents.
+     *
+     * @param string $name The name of the class for which the metadata should get loaded.
+     *
+     * @return array
+     */
+    protected function loadMetadata($name)
+    {
+    	if ( ! $this->initialized) {
+    		$this->initialize();
+    	}
+    
+    	$loaded = array();
+    
+    	$parentClasses = $this->getParentClasses($name);
+    	$parentClasses[] = $name;
+    	// Move down the hierarchy of parent classes, starting from the topmost class
+    	$parent = null;
+    	$rootEntityFound = false;
+    	$visited = array();
+    	$reflService = $this->getReflectionService();
+    	foreach ($parentClasses as $className) {
+    		if ($this->hasMetadataFor($className)) {
+    			$parent = $this->getMetadataFor($className);
+    			if ($this->isEntity($parent)) {
+    				$rootEntityFound = true;
+    			}
+    			array_unshift($visited, $className);
+    			continue;
+    		}
+    		
+    		$class = $this->newClassMetadataInstance($className);
+    		$this->initializeReflection($class, $reflService);
+    
+    		$this->doLoadMetadata($class, $parent, $rootEntityFound, $visited);
+    
+    		$this->setMetadataFor($className, $class);
+    
+    		$parent = $class;
+    
+    		if ($this->isEntity($class)) {
+    			$rootEntityFound = true;
+    		}
+    		array_unshift($visited, $className);
+    		
+    		$this->wakeupReflection($class, $reflService);
+    
+    		$loaded[] = $className;
+    	}
+    	return $loaded;
+    }
+    
+    
+    /**
      * {@inheritDoc}
      */
     protected function doLoadMetadata($class, $parent, $rootEntityFound, array $nonSuperclassParents)
@@ -242,9 +346,9 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
         } catch (ReflectionException $e) {
             throw MappingException::reflectionFailure($class->getName(), $e);
         }
-    
-        if ( ! $class->isMappedSuperclass && in_array($class->getXmlName(), array_keys($this->xmlToClassMap))) {
-            throw MappingException::duplicateXmlNameBinding($class->getName(), $class->getXmlName());
+
+        if ( $this->isEntity($class) && in_array($class->getXmlName(), array_keys($this->xmlToClassMap))) {
+        	throw MappingException::duplicateXmlNameBinding($class->getName(), $class->getXmlName());
         }
     
         if ($parent && ! $parent->isMappedSuperclass) {

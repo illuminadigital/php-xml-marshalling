@@ -2,11 +2,7 @@
 
 require_once 'bootstrap.php';
 
-//var_dump($dm->getRepository('Documents\Article'));
-
 $articles = $dm->getRepository('Documents\Article')->findAll();
-
-//var_dump($articles);
 
 foreach ($articles as $article)
 {

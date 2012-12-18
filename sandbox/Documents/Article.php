@@ -69,6 +69,17 @@ class Article
         $this->sections[] = $section;
     }
     
+    public function setSections(array $sections)
+    {
+        foreach ($sections as $section)
+        {
+            if ($section instanceof Section)
+            {
+                $this->sections[] = $section;
+            }
+        }
+    }
+    
     public function removeSection(Section $section)
     {
         $this->sections->remove($section);

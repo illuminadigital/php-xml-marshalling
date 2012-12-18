@@ -210,10 +210,10 @@ class XmlMarshaller implements Marshaller
      * @param \XMLReader $cursor
      * @return object
      */
-    private function doUnmarshal(XMLReader $cursor)
+    private function doUnmarshal(XMLReader $cursor, $endElement = NULL, $classMetadata = NULL)
     {
         $allMappedXmlNodes = $this->classMetadataFactory->getAllXmlNodes();
-        $knownMappedNodes = array_keys($allMappedXmlNodes);
+        $allMappedWrapperXmlNodes = $this->classMetadataFactory->getAllWrapperXmlNodes();
 
         if ($cursor->nodeType !== XMLReader::ELEMENT && $cursor->nodeType !== XMLReader::CDATA) {
             throw MarshallerException::invalidMarshallerState($cursor);
@@ -221,19 +221,26 @@ class XmlMarshaller implements Marshaller
         }
 
         $elementName = $cursor->localName;
-
-        if (!in_array($elementName, $knownMappedNodes)) {
+        
+        if (!array_key_exists($elementName, $allMappedXmlNodes) && !array_key_exists($elementName, $allMappedWrapperXmlNodes)) {
             throw MappingException::invalidMapping($elementName);
         }
-        $classMetadata = $this->classMetadataFactory->getMetadataFor($allMappedXmlNodes[$elementName]);
+        
+        if ( ! empty($classMetadata)) {
+            $isInWrapper = TRUE;
+        } else {
+            $isInWrapper = FALSE;
+		    $classMetadata = $this->classMetadataFactory->getMetadataFor($allMappedXmlNodes[$elementName]);
+        }
+                    
         $mappedObject = $classMetadata->newInstance();
 
-        // Pre Unmarshal hook
+        // Pre Unmarshal hook -- doesn't make sense on the wrapper
         if ($classMetadata->hasLifecycleCallbacks(Events::preUnmarshal)) {
             $classMetadata->invokeLifecycleCallbacks(Events::preUnmarshal, $mappedObject);
         }
 
-        if ($cursor->hasAttributes) {
+		if (! $isInWrapper && $cursor->hasAttributes) {
             while ($cursor->moveToNextAttribute()) {
                 if ($classMetadata->hasXmlField($cursor->name)) {
                     $fieldName = $classMetadata->getFieldName($cursor->name);
@@ -244,7 +251,7 @@ class XmlMarshaller implements Marshaller
                         throw MappingException::fieldRequired($classMetadata->name, $fieldName);
                     }
 
-                    if ($classMetadata->isCollection($fieldName)) {
+                    if ($classMetadata->isCollection($fieldName) || $isInWrapper) {
                         $convertedValues = array();
                         foreach (explode(" ", $cursor->value) as $value) {
                             $convertedValues[] = $type->convertToPHPValue($value);
@@ -263,7 +270,8 @@ class XmlMarshaller implements Marshaller
             $collectionElements = array();
 
             while ($cursor->read()) {
-                if ($cursor->nodeType === XMLReader::END_ELEMENT && $cursor->name === $elementName) {
+                if ($cursor->nodeType === XMLReader::END_ELEMENT && 
+                		($cursor->name === $elementName || ($isInWrapper && $cursor->name === $endElement))) {
                     // we're at the original element closing node, bug out
                     break;
                 }
@@ -281,7 +289,10 @@ class XmlMarshaller implements Marshaller
 
                     if ($this->classMetadataFactory->hasMetadataFor($fieldMapping['type'])) {
 
-                        if ($classMetadata->isCollection($fieldName)) {
+                        if ($classMetadata->hasFieldWrapping($fieldName)) {
+                            $cursor->moveToElement();
+                            $collectionElements[$fieldName] = $this->doUnmarshal($cursor, $fieldName, $classMetadata);
+                        } elseif ($classMetadata->isCollection($fieldName) || $isInWrapper) {
                             $collectionElements[$fieldName][] = $this->doUnmarshal($cursor);
                         } else {
                             $classMetadata->setFieldValue($mappedObject, $fieldName, $this->doUnmarshal($cursor));
@@ -296,7 +307,7 @@ class XmlMarshaller implements Marshaller
                             }
 
                             $type = Type::getType($fieldMapping['type']);
-                            if ($classMetadata->isCollection($fieldName)) {
+                            if ($classMetadata->isCollection($fieldName) || $isInWrapper) {
                                 $collectionElements[$fieldName][] = $type->convertToPHPValue($cursor->value);
                             } else {
                                 $classMetadata->setFieldValue($mappedObject, $fieldName, $type->convertToPHPValue($cursor->value));
@@ -306,26 +317,45 @@ class XmlMarshaller implements Marshaller
                         }
                     }
                 } elseif ($cursor->nodeType === XMLReader::TEXT || $cursor->nodeType === XMLReader::CDATA) {
-                    foreach ($classMetadata->getFieldNames() as $fieldName) {
+                	foreach ($classMetadata->getFieldNames() as $fieldName) {
                         if (ClassMetadata::XML_VALUE === $classMetadata->getFieldXmlNode($fieldName)) {
                             $fieldMapping = $classMetadata->getFieldMapping($fieldName);
                             $type = Type::getType($fieldMapping['type']);
                             $classMetadata->setFieldValue($mappedObject, $fieldName, $type->convertToPHPValue($cursor->value));
                         }
                     }
-                } elseif (in_array($cursor->name, $knownMappedNodes)) {  // look for inherited child directly
-                    $childClassMetadata = $this->classMetadataFactory->getMetadataFor($allMappedXmlNodes[$cursor->name]);
+                } elseif (array_key_exists($cursor->name, $allMappedXmlNodes) || array_key_exists($cursor->name, $allMappedWrapperXmlNodes)) {  // look for inherited child directly
+                	if (array_key_exists($cursor->name, $allMappedWrapperXmlNodes))
+                	{
+                		if ($allMappedWrapperXmlNodes[$cursor->name][$elementName] === NULL) {
+                			$childClassMetadata = NULL;
+                		} else {
+	                		$childClassMetadata = $this->classMetadataFactory->getMetadataFor($allMappedWrapperXmlNodes[$cursor->name][$elementName]);
+                		}
+                	}
+                	else
+                	{
+                		$childClassMetadata = $this->classMetadataFactory->getMetadataFor($allMappedXmlNodes[$cursor->name]);
+                	}
 
                     // todo: ensure this potential child inherits from parent correctly
                     
                     $fieldName = null;
+                    $isWrapper = FALSE;
+                    
                     foreach ($classMetadata->getFieldMappings() as $fieldMapping) {
-                        if ($fieldMapping['type'] == $allMappedXmlNodes[$cursor->name]) {
-                            $fieldName = $fieldMapping['fieldName'];
-                        } else {
+                    	if (isset($allMappedXmlNodes[$cursor->name]) && $fieldMapping['type'] == $allMappedXmlNodes[$cursor->name]) {
+                    		$fieldName = $fieldMapping['fieldName'];
+                    	} elseif (isset($allMappedWrapperXmlNodes[$cursor->name][$elementName]) && $fieldMapping['type'] == $allMappedWrapperXmlNodes[$cursor->name][$elementName]) {
+                    		$fieldName = $fieldMapping['fieldName'];
+                    		$isWrapper = TRUE;
+                    	} else {
                             // Walk parent tree
+                    		if ( ! isset($childClassMetadata) ) {
+                            	continue;
+                            }
                             foreach ($childClassMetadata->getParentClasses() as $parentClass) {
-                                if ($fieldMapping['type'] == $parentClass) {
+                            	if ($fieldMapping['type'] == $parentClass) {
                                     $fieldName = $fieldMapping['fieldName'];
                                 }
                             }
@@ -333,7 +363,13 @@ class XmlMarshaller implements Marshaller
                     }
 
                     if ($fieldName !== null) {
-                        if ($classMetadata->isCollection($fieldName)) {
+                        if ($isWrapper) {
+							$thisFieldMapping = $classMetadata->getFieldMapping($fieldName);
+							$childEndElement = $thisFieldMapping['wrapper'];
+                            $childElements = $this->doUnmarshal($cursor, $childEndElement, $classMetadata);
+                        
+                            $collectionElements[$fieldName] = $childElements;
+                        } elseif ($classMetadata->isCollection($fieldName)) {
                             $collectionElements[$fieldName][] = $this->doUnmarshal($cursor);
                         } else {
                             $classMetadata->setFieldValue($mappedObject, $fieldName, $this->doUnmarshal($cursor));
@@ -343,15 +379,23 @@ class XmlMarshaller implements Marshaller
             }
 
             if (!empty($collectionElements)) {
-                foreach ($collectionElements as $fieldName => $elements) {
-                    $classMetadata->setFieldValue($mappedObject, $fieldName, $elements);
+                if ( ! $isInWrapper || ! isset($fieldName) ) { 
+                    foreach ($collectionElements as $fieldName => $elements) {
+                        $classMetadata->setFieldValue($mappedObject, $fieldName, $elements);
+                    }
+                } else {
+                    if ( ! empty($collectionElements[$fieldName]) && ! empty($collectionElements[$fieldName][0])) {
+                        $mappedObject = $collectionElements[$fieldName];
+                    }
                 }
             }
         }
 
-        // PostUnmarshall hook
-        if ($classMetadata->hasLifecycleCallbacks(Events::postUnmarshal)) {
-            $classMetadata->invokeLifecycleCallbacks(Events::postUnmarshal, $mappedObject);
+        if ( ! $isInWrapper ) {
+            // PostUnmarshall hook
+            if ($classMetadata->hasLifecycleCallbacks(Events::postUnmarshal)) {
+                $classMetadata->invokeLifecycleCallbacks(Events::postUnmarshal, $mappedObject);
+            }
         }
 
         return $mappedObject;
