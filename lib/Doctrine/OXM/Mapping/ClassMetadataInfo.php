@@ -552,10 +552,16 @@ class ClassMetadataInfo implements BaseClassMetadata
 
         if (!isset($mapping['name'])) {
             $mapping['name'] = Inflector::xmlize($mapping['fieldName']);
+            if (!isset($mapping['forceName'])) { 
+            	$mapping['forceName'] = false; 
+            }
         } else {
             if ($mapping['name'][0] == '`') {
                 $mapping['name'] = trim($mapping['name'], '`');
                 $mapping['quoted'] = true;
+            }
+            if (!isset($mapping['forceName'])) { 
+            	$mapping['forceName'] = true; 
             }
         }
 

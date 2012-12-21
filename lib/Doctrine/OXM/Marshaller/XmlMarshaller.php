@@ -443,7 +443,7 @@ class XmlMarshaller implements Marshaller
      * @param WriterHelper $writer
      * @return void
      */
-    private function doMarshal($mappedObject, WriterHelper $writer)
+    private function doMarshal($mappedObject, WriterHelper $writer, $fieldMapping = NULL)
     {
         $className = get_class($mappedObject);
         $classMetadata = $this->classMetadataFactory->getMetadataFor($className);
@@ -463,7 +463,8 @@ class XmlMarshaller implements Marshaller
 
         $this->visited[spl_object_hash($mappedObject)] = true;
 
-        $writer->startElement($classMetadata->getXmlName());
+        $xmlName = (isset($fieldMapping['forceName']) && $fieldMapping['forceName'] && isset($fieldMapping['name']) ? $fieldMapping['name'] : $classMetadata->getXmlName());
+        $writer->startElement($xmlName);
 
         $namespaces = $classMetadata->getXmlNamespaces();
         if (!empty($namespaces)) {
@@ -630,13 +631,13 @@ class XmlMarshaller implements Marshaller
                     $writer->startElement($mapping['wrapper'], $prefix);
                 }
                 foreach ($fieldValue as $value) {
-                    $this->doMarshal($value, $writer);
+                    $this->doMarshal($value, $writer, $mapping);
                 }
                 if ($classMetadata->hasFieldWrapping($fieldName)) {
                     $writer->endElement();
                 }
             } else {
-                $this->doMarshal($fieldValue, $writer);
+                $this->doMarshal($fieldValue, $writer, $mapping);
             }
         }
     }

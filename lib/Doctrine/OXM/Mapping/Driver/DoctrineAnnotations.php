@@ -80,6 +80,7 @@ final class XmlAttribute extends XmlField {
 /** @Annotation */
 final class XmlElement extends XmlField {
     public $node = "element";
+    public $forceName;
 }
 
 /** @Annotation */
