@@ -499,9 +499,15 @@ class XmlMarshaller implements Marshaller
             }
         }
 
-        // do text
-        if (array_key_exists(ClassMetadata::XML_TEXT, $orderedMap)) {
-            foreach ($orderedMap[ClassMetadata::XML_TEXT] as $fieldMapping) {
+        // do others
+        if ( ! empty($fieldMappings) ) {
+            foreach ($fieldMappings as $fieldMapping) {
+            	
+            	if ($fieldMapping['node'] == ClassMetadata::XML_ATTRIBUTE)
+            	{
+            		// Already done
+            		continue;
+            	}
 
                 $fieldName = $fieldMapping['fieldName'];
                 $fieldValue = $classMetadata->getFieldValue($mappedObject, $fieldName);
@@ -511,46 +517,17 @@ class XmlMarshaller implements Marshaller
                 }
 
                 if ($fieldValue !== null || $classMetadata->isNullable($fieldName)) {
-                    $this->writeText($writer, $classMetadata, $fieldName, $fieldValue);
+                	if ($fieldMapping['node'] == ClassMetadata::XML_VALUE) {
+                		$type = $classMetadata->getTypeOfField($fieldName);
+                		$writer->writeValue(Type::getType($type)->convertToXmlValue($fieldValue));
+                	} else if ($fieldMapping['node'] == ClassMetadata::XML_TEXT) {
+	                    $this->writeText($writer, $classMetadata, $fieldName, $fieldValue);
+                	} else {
+	                    $this->writeElement($writer, $classMetadata, $fieldName, $fieldValue);
+                	}
                 }
             }
         }
-
-        // do elements
-        if (array_key_exists(ClassMetadata::XML_ELEMENT, $orderedMap)) {
-            foreach ($orderedMap[ClassMetadata::XML_ELEMENT] as $fieldMapping) {
-
-                $fieldName = $fieldMapping['fieldName'];
-                $fieldValue = $classMetadata->getFieldValue($mappedObject, $fieldName);
-
-                if ($classMetadata->isRequired($fieldName) && $fieldValue === null) {
-                    throw MarshallerException::fieldRequired($className, $fieldName);
-                }
-
-                if ($fieldValue !== null || $classMetadata->isNullable($fieldName)) {
-                    $this->writeElement($writer, $classMetadata, $fieldName,  $fieldValue);   
-                }
-            }
-        }
-
-        // do value
-        if (array_key_exists(ClassMetadata::XML_VALUE, $orderedMap)) {
-            foreach ($orderedMap[ClassMetadata::XML_VALUE] as $fieldMapping) {
-
-                $fieldName = $fieldMapping['fieldName'];
-                $fieldValue = $classMetadata->getFieldValue($mappedObject, $fieldName);
-
-                if ($classMetadata->isRequired($fieldName) && $fieldValue === null) {
-                    throw MarshallerException::fieldRequired($className, $fieldName);
-                }
-
-                if ($fieldValue !== null || $classMetadata->isNullable($fieldName)) {
-                    $type = $classMetadata->getTypeOfField($fieldName);
-                    $writer->writeValue(Type::getType($type)->convertToXmlValue($fieldValue));
-                }
-            }
-        }
-
 
         // PostMarshal hook
         if ($classMetadata->hasLifecycleCallbacks(Events::postMarshal)) {
