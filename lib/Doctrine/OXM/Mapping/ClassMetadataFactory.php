@@ -348,7 +348,11 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
         }
 
         if ( $this->isEntity($class) && in_array($class->getXmlName(), array_keys($this->xmlToClassMap))) {
-        	throw MappingException::duplicateXmlNameBinding($class->getName(), $class->getXmlName());
+        	if ($this->xmlToClassMap[$class->getXmlName()] == $class->getName()) {
+        		error_log('Duplicate entry for ' . $class->getName() . ' as ' . $class->getXmlName());
+        	} else {
+	        	throw MappingException::duplicateXmlNameBinding($class->getName(), $class->getXmlName());
+        	}
         }
     
         if ($parent && ! $parent->isMappedSuperclass) {
