@@ -222,15 +222,24 @@ class XmlMarshaller implements Marshaller
 
         $elementName = $cursor->localName;
         
-        if (!array_key_exists($elementName, $allMappedXmlNodes) && !array_key_exists($elementName, $allMappedWrapperXmlNodes)) {
-            throw MappingException::invalidMapping($elementName);
-        }
-        
         if ( ! empty($classMetadata)) {
-            $isInWrapper = TRUE;
+            $isInWrapper = !empty($endElement);
         } else {
             $isInWrapper = FALSE;
-		    $classMetadata = $this->classMetadataFactory->getMetadataFor($allMappedXmlNodes[$elementName]);
+            
+            if (!array_key_exists($elementName, $allMappedXmlNodes) && !array_key_exists($elementName, $allMappedWrapperXmlNodes)) {
+	            throw MappingException::invalidMapping($elementName);
+	        }
+        
+            $classes = $allMappedXmlNodes[$elementName];
+            if (count($classes) == 1) {
+            	$className = $classes[array_shift(array_keys($classes))];
+            } else {
+            	// Should try to work out the correct namespace version here
+            	error_log('Scream: too many choices!');
+            }
+            
+		    $classMetadata = $this->classMetadataFactory->getMetadataFor($className);
         }
                     
         $mappedObject = $classMetadata->newInstance();
@@ -288,14 +297,17 @@ class XmlMarshaller implements Marshaller
                     $fieldMapping = $classMetadata->getFieldMapping($fieldName);
 
                     if ($this->classMetadataFactory->hasMetadataFor($fieldMapping['type'])) {
-
+                    	$namespace = $cursor->namespaceURI;
+                    	$childClass = $this->classMetadataFactory->getAlternativeClassForNamespace($fieldMapping['type'], $namespace);
+                    	$childClassMetadata = $this->classMetadataFactory->getMetadataFor($childClass);
+                    	 
                         if ($classMetadata->hasFieldWrapping($fieldName)) {
                             $cursor->moveToElement();
                             $collectionElements[$fieldName] = $this->doUnmarshal($cursor, $fieldName, $classMetadata);
                         } elseif ($classMetadata->isCollection($fieldName) || $isInWrapper) {
-                            $collectionElements[$fieldName][] = $this->doUnmarshal($cursor);
+                            $collectionElements[$fieldName][] = $this->doUnmarshal($cursor, NULL, $childClassMetadata);
                         } else {
-                            $classMetadata->setFieldValue($mappedObject, $fieldName, $this->doUnmarshal($cursor));
+                            $classMetadata->setFieldValue($mappedObject, $fieldName, $this->doUnmarshal($cursor, NULL, $childClassMetadata));
                         }
                     } else {
                         // assume text element (dangerous?)

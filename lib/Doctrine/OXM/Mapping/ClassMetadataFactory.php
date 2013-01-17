@@ -79,6 +79,13 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      * @var array
      */
     private $wrapperXmlToClassMap = array();
+    
+    /**
+     * Keys are the base class name
+     * 
+     * @var array
+     */
+    private $alternativeClassMap = array();
 
     /**
      * @param Configuration $configuration
@@ -124,6 +131,23 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
 
         return $this->wrapperXmlToClassMap;
     }
+    
+    /**
+     * Preloads all metadata and returns an array of all known alternative classes
+     * 
+     * @return array
+     */
+    public function getAllAlternativeClasses()
+    {
+    	if (!$this->initialized) {
+    		$this->initialize();
+    	}
+    	
+    	// Load all metadata
+    	$this->getAllMetadata();
+    	
+    	return $this->alternativeClassMap;
+    }
 
     /**
      * Lazy initialization of this stuff, especially the metadata driver,
@@ -131,7 +155,7 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      */
     protected function initialize()
     {
-        $this->cacheDriver = $this->configuration->getMetadataCacheImpl();
+        $this->setCacheDriver($this->configuration->getMetadataCacheImpl()); // Private property of parent class
         $this->driver = $this->configuration->getMetadataDriverImpl();
 
         if (null === $this->evm) {
@@ -167,8 +191,6 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
         $this->completeMappingTypeValidation($class->getName(), $class);
     
         if ( $this->isEntity($class)) {
-            $this->xmlToClassMap[$class->getXmlName()] = $class->getName();
-
             foreach ($class->getFieldMappings() as $fieldMapping)
             {
                 if ( ! empty($fieldMapping['wrapper'] ) )
@@ -307,7 +329,7 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
     		$this->doLoadMetadata($class, $parent, $rootEntityFound, $visited);
     
     		$this->setMetadataFor($className, $class);
-    
+    		
     		$parent = $class;
     
     		if ($this->isEntity($class)) {
@@ -347,12 +369,31 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
             throw MappingException::reflectionFailure($class->getName(), $e);
         }
 
-        if ( $this->isEntity($class) && in_array($class->getXmlName(), array_keys($this->xmlToClassMap))) {
-        	if ($this->xmlToClassMap[$class->getXmlName()] == $class->getName()) {
-        		error_log('Duplicate entry for ' . $class->getName() . ' as ' . $class->getXmlName());
-        	} else {
-	        	throw MappingException::duplicateXmlNameBinding($class->getName(), $class->getXmlName());
+        $xmlNamespace = empty($class->xmlNamespaces) ? '' : $class->xmlNamespaces[0]['url'];
+        
+        foreach ($class->xmlNamespaces as $namespaceData) {
+        	if (empty($namespaceData['prefix'])) {
+        		$xmlNamespace = $namespaceData['url'];
         	}
+        }
+        
+        $xmlName = $class->getXmlName();
+        
+        if ( $this->isEntity($class) && array_key_exists($xmlName, $this->xmlToClassMap) && array_key_exists($xmlNamespace, $this->xmlToClassMap[$xmlName])) {
+			if ($this->xmlToClassMap[$xmlName][$xmlNamespace] == $class->getName() || $this->xmlToClassMap[$xmlName][$xmlNamespace] == '\\' . $class->getName()) {
+				// Ignore
+	        } else {
+        		throw MappingException::duplicateXmlNameBinding($class->getName(), $class->getXmlName());
+	        }
+        }
+        
+        // The previous test should be sufficent for us to just assume that the namespace/alternative is fine
+        if ( ! empty($parent) ) {
+        	$this->alternativeClassMap[$parent->getName()][$xmlNamespace] = $class->getName();
+        }
+        
+        if ( ! $class->isMappedSuperclass) {
+        	$this->xmlToClassMap[$xmlName][$xmlNamespace] = $class->getName();
         }
     
         if ($parent && ! $parent->isMappedSuperclass) {
@@ -458,5 +499,26 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
             default:
                 throw new OXMException("Unknown generator type: " . $class->generatorType);
         }
+    }
+    
+    /**
+     * Looks for an alternative implementation class (eg a child class) based on the namespace
+     * 
+     * @param string $className The base class to start from
+     * @param string $namespace The namespace currently being used
+     * 
+     * @return string
+     */
+    public function getAlternativeClassForNamespace($className, $namespace)
+    {
+    	if (substr($className, 0, 1) == '\\') {
+    		$className = substr($className, 1);
+    	}
+    	
+    	if ( ! empty($this->alternativeClassMap[$className]) && ! empty($this->alternativeClassMap[$className][$namespace])) {
+    		return $this->alternativeClassMap[$className][$namespace];
+    	}
+    	
+    	return $className;
     }
 }
