@@ -1,5 +1,5 @@
 {
-    "name":"illuminadigital/php-xml-marshalling",
+    "name":"doctrine/oxm",
     "type":"library",
     "description":"Object-XML-Mapper for PHP",
     "keywords":["oxm", "xml"],
