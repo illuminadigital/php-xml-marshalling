@@ -233,7 +233,8 @@ class XmlMarshaller implements Marshaller
         
             $classes = $allMappedXmlNodes[$elementName];
             if (count($classes) == 1) {
-            	$className = $classes[array_shift(array_keys($classes))];
+            	$namespaces = array_keys($classes);
+            	$className = $classes[array_shift($namespaces)];
             } else {
             	// Should try to work out the correct namespace version here
             	error_log('Scream: too many choices!');
