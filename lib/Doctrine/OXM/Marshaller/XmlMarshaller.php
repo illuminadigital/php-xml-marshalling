@@ -210,7 +210,7 @@ class XmlMarshaller implements Marshaller
      * @param \XMLReader $cursor
      * @return object
      */
-    private function doUnmarshal(XMLReader $cursor, $endElement = NULL, $classMetadata = NULL)
+    private function doUnmarshal(XMLReader $cursor, $endElement = NULL, $classMetadata = NULL, $virtualNamespace = NULL)
     {
         $allMappedXmlNodes = $this->classMetadataFactory->getAllXmlNodes();
         $allMappedWrapperXmlNodes = $this->classMetadataFactory->getAllWrapperXmlNodes();
@@ -295,24 +295,46 @@ class XmlMarshaller implements Marshaller
                     continue;
                 }
 
-                if ($classMetadata->hasXmlField($cursor->localName)) {
+                if ($classMetadata->hasXmlField($cursor->localName) || $classMetadata->hasXmlField('*')) {
                     $fieldName = $classMetadata->getFieldName($cursor->localName);
+                    $inAnyMode = FALSE;
+                    
+                    if ( ! $fieldName ) {
+                    	$fieldName = $classMetadata->getFieldName('*');
+                    	$inAnyMode = TRUE;
+                    }
 
                     // Check for mapped entity as child, add recursively
                     $fieldMapping = $classMetadata->getFieldMapping($fieldName);
 
                     if ($this->classMetadataFactory->hasMetadataFor($fieldMapping['type'])) {
-                    	$namespace = $cursor->namespaceURI;
-                    	$childClass = $this->classMetadataFactory->getAlternativeClassForNamespace($fieldMapping['type'], $namespace);
-                    	$childClassMetadata = $this->classMetadataFactory->getMetadataFor($childClass);
+                    	$namespace = $cursor->namespaceURI ? $cursor->namespaceURI : $virtualNamespace;
+                    	
+                    	$childClass = NULL;
+                    	
+                     	if ( $inAnyMode ) {
+							 // Check the global mapping
+							 if ( ! empty($allMappedXmlNodes[$cursor->localName]) ) {
+							 	$childClass = $allMappedXmlNodes[$cursor->localName];
+							 	if (is_array($childClass)) {
+							 		$childClass = array_shift($childClass);
+							 	} 
+							 }                    		
+                     	} 
+                     	
+                     	if ( empty($childClass)) {
+                     		$childClass = $this->classMetadataFactory->getAlternativeClassForNamespace($fieldMapping['type'], $namespace);
+                     	}
+                     	
+                     	$childClassMetadata = $this->classMetadataFactory->getMetadataFor($childClass);
                     	 
                         if ($classMetadata->hasFieldWrapping($fieldName)) {
                             $cursor->moveToElement();
-                            $collectionElements[$fieldName] = $this->doUnmarshal($cursor, $fieldName, $classMetadata);
+                            $collectionElements[$fieldName] = $this->doUnmarshal($cursor, $fieldName, $classMetadata, $namespace);
                         } elseif ($classMetadata->isCollection($fieldName) || $isInWrapper) {
-                            $collectionElements[$fieldName][] = $this->doUnmarshal($cursor, NULL, $childClassMetadata);
+                            $collectionElements[$fieldName][] = $this->doUnmarshal($cursor, NULL, $childClassMetadata, $namespace);
                         } else {
-                            $classMetadata->setFieldValue($mappedObject, $fieldName, $this->doUnmarshal($cursor, NULL, $childClassMetadata));
+                            $classMetadata->setFieldValue($mappedObject, $fieldName, $this->doUnmarshal($cursor, NULL, $childClassMetadata, $namespace));
                         }
                     } else {
                         // assume text element (dangerous?)
@@ -352,7 +374,18 @@ class XmlMarshaller implements Marshaller
                 	}
                 	else
                 	{
-                		$childClassMetadata = $this->classMetadataFactory->getMetadataFor($allMappedXmlNodes[$cursor->name]);
+                		if (is_array($allMappedXmlNodes[$cursor->name]))
+                		{
+                			// FIXME: This is fragile as it doesn't account for the same xml name being used more than once
+                			$childClasses = array_values($allMappedXmlNodes[$cursor->name]);
+                			$childClass = array_shift($childClasses);
+                		}
+                		else
+                		{
+                			$childClass = $allMappedXmlNodes[$cursor->name];
+                		}
+                		
+                		$childClassMetadata = $this->classMetadataFactory->getMetadataFor($childClass);
                 	}
 
                     // todo: ensure this potential child inherits from parent correctly
@@ -380,16 +413,18 @@ class XmlMarshaller implements Marshaller
                     }
 
                     if ($fieldName !== null) {
+                    	$namespace = $cursor->namespaceURI ? $cursor->namespaceURI : $virtualNamespace;
+                    	
                         if ($isWrapper) {
 							$thisFieldMapping = $classMetadata->getFieldMapping($fieldName);
 							$childEndElement = $thisFieldMapping['wrapper'];
-                            $childElements = $this->doUnmarshal($cursor, $childEndElement, $classMetadata);
+                            $childElements = $this->doUnmarshal($cursor, $childEndElement, $classMetadata, $namespace);
                         
                             $collectionElements[$fieldName] = $childElements;
                         } elseif ($classMetadata->isCollection($fieldName)) {
-                            $collectionElements[$fieldName][] = $this->doUnmarshal($cursor);
+                            $collectionElements[$fieldName][] = $this->doUnmarshal($cursor, NULL, NULL, $namespace);
                         } else {
-                            $classMetadata->setFieldValue($mappedObject, $fieldName, $this->doUnmarshal($cursor));
+                            $classMetadata->setFieldValue($mappedObject, $fieldName, $this->doUnmarshal($cursor, NULL, NULL, $namespace));
                         }
                     }
                 }

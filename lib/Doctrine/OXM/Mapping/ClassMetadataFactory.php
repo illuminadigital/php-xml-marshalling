@@ -378,7 +378,9 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
         }
         
         $xmlName = $class->getXmlName();
-        
+
+        // Ignore duplicate binding issues -- at least for now
+        /*
         if ( $this->isEntity($class) && array_key_exists($xmlName, $this->xmlToClassMap) && array_key_exists($xmlNamespace, $this->xmlToClassMap[$xmlName])) {
 			if ($this->xmlToClassMap[$xmlName][$xmlNamespace] == $class->getName() || $this->xmlToClassMap[$xmlName][$xmlNamespace] == '\\' . $class->getName()) {
 				// Ignore
@@ -386,6 +388,7 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
         		throw MappingException::duplicateXmlNameBinding($class->getName(), $class->getXmlName());
 	        }
         }
+        */
         
         // The previous test should be sufficent for us to just assume that the namespace/alternative is fine
         if ( ! empty($parent) ) {
