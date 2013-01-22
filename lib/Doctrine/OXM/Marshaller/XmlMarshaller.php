@@ -227,11 +227,15 @@ class XmlMarshaller implements Marshaller
         } else {
             $isInWrapper = FALSE;
             
-            if (!array_key_exists($elementName, $allMappedXmlNodes) && !array_key_exists($elementName, $allMappedWrapperXmlNodes)) {
+            if (!array_key_exists($elementName, $allMappedXmlNodes) && !array_key_exists($elementName, $allMappedWrapperXmlNodes) && !array_key_exists('*', $allMappedXmlNodes)) {
 	            throw MappingException::invalidMapping($elementName);
 	        }
         
-            $classes = $allMappedXmlNodes[$elementName];
+	        if (array_key_exists($elementName, $allMappedXmlNodes)) {
+	            $classes = $allMappedXmlNodes[$elementName];
+	        } else {
+	        	$classes = $allMappedXmlNodes['*'];
+	        }
             if (count($classes) == 1) {
             	$namespaces = array_keys($classes);
             	$className = $classes[array_shift($namespaces)];
