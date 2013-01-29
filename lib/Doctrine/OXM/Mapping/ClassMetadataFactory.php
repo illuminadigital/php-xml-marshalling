@@ -509,10 +509,11 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      * 
      * @param string $className The base class to start from
      * @param string $namespace The namespace currently being used
+     * @param bool $defaultToBase Whether to use the supplied base if nothing is found 
      * 
      * @return string
      */
-    public function getAlternativeClassForNamespace($className, $namespace)
+    public function getAlternativeClassForNamespace($className, $namespace, $defaultToBase = TRUE)
     {
     	if (substr($className, 0, 1) == '\\') {
     		$className = substr($className, 1);
@@ -522,6 +523,40 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
     		return $this->alternativeClassMap[$className][$namespace];
     	}
     	
-    	return $className;
+    	if ($defaultToBase) {
+        	return $className;
+    	}
+    	// else
+    	return NULL;
+    }
+    
+    public function getAlternativeClassForName($className, $name, $defaultToBase = TRUE)
+    {
+        if (substr($className, 0, 1) == '\\') {
+            $className = substr($className, 1);
+        }
+
+        if ( ! empty($this->alternativeClassMap[$className]) )
+        {
+            foreach ($this->alternativeClassMap[$className] as $namespace => $class)
+            {
+                $classNameElements = explode('\\', $class);
+                $classLocalName = array_pop($classNameElements);
+                
+                if ($name == $classLocalName || $name == strtolower($classLocalName) 
+                        || ucfirst($name) == $classLocalName 
+                        || $name == preg_replace('/[A-Z]/e', '"-" . strtolower("$1")', $classLocalName))
+                {
+                    return $class;
+                }
+            }
+        }
+        
+        if ($defaultToBase)
+        {
+            return $className;
+        }
+        // else
+        return FALSE;
     }
 }

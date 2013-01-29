@@ -313,13 +313,23 @@ class XmlMarshaller implements Marshaller
                     	$childClass = NULL;
                     	
                      	if ( $inAnyMode ) {
-							 // Check the global mapping
-							 if ( ! empty($allMappedXmlNodes[$cursor->localName]) ) {
-							 	$childClass = $allMappedXmlNodes[$cursor->localName];
-							 	if (is_array($childClass)) {
-							 		$childClass = array_shift($childClass);
-							 	} 
-							 }                    		
+                     	    $childClass = $this->classMetadataFactory->getAlternativeClassForName($fieldMapping['type'], $cursor->localName, FALSE);
+                     	    
+                     	    if ( ! $childClass )
+                     	    {
+                     	        $childClass = $this->classMetadataFactory->getAlternativeClassForNamespace($fieldMapping['type'], $namespace, FALSE);
+                     	    }
+                     	    
+                     	    if ( ! $childClass )
+                     	    {
+    							// Check the global mapping
+    							if ( ! empty($allMappedXmlNodes[$cursor->localName]) ) {
+    								$childClass = $allMappedXmlNodes[$cursor->localName];
+    								if (is_array($childClass)) {
+    									$childClass = array_shift($childClass);
+    								} 
+    							}
+                     	    }                    		
                      	} 
                      	
                      	if ( empty($childClass)) {
