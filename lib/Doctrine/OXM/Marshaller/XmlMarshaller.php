@@ -525,7 +525,12 @@ class XmlMarshaller implements Marshaller
 
         $this->visited[spl_object_hash($mappedObject)] = true;
 
-        $xmlName = (isset($fieldMapping['forceName']) && $fieldMapping['forceName'] && isset($fieldMapping['name']) ? $fieldMapping['name'] : $classMetadata->getXmlName());
+        
+        $xmlName = $classMetadata->getXmlName();
+        if (isset($fieldMapping['forceName']) && $fieldMapping['forceName'] && isset($fieldMapping['name']) && $fieldMapping['name'] != '*')
+        { 
+            $xmlName = $fieldMapping['name'];
+        }
         $writer->startElement($xmlName);
 
         $namespaces = $classMetadata->getXmlNamespaces();
