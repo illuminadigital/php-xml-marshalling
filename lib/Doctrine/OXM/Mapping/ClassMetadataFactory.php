@@ -189,6 +189,27 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
         /* @var $class ClassMetadata */
         $class->wakeupReflection($reflService);
         $this->completeMappingTypeValidation($class->getName(), $class);
+
+        $xmlNamespace = empty($class->xmlNamespaces) ? '' : $class->xmlNamespaces[0]['url'];
+        
+        foreach ($class->xmlNamespaces as $namespaceData) {
+            if (empty($namespaceData['prefix'])) {
+                $xmlNamespace = $namespaceData['url'];
+            }
+        }
+        
+        $xmlName = $class->getXmlName();
+
+        if (!empty($class->parent)) {
+            $parent = $this->getMetadataFor($class->parent);
+            if ( ! empty($parent) ) {
+                $this->alternativeClassMap[$parent->getName()][$xmlNamespace] = $class->getName();
+            }
+        }
+    
+        if ( ! $class->isMappedSuperclass) {
+            $this->xmlToClassMap[$xmlName][$xmlNamespace] = $class->getName();
+        }
     
         if ( $this->isEntity($class)) {
             foreach ($class->getFieldMappings() as $fieldMapping)
@@ -231,60 +252,6 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
         return isset($class->isMappedSuperclass) && $class->isMappedSuperclass === false;
     }
 
-    /**
-     * Loads the metadata of the class in question and all it's ancestors whose metadata
-     * is still not loaded.
-     *
-     * @param string $name The name of the class for which the metadata should get loaded.
-     * @param array  $tables The metadata collection to which the loaded metadata is added.
-     */
-/*
-    protected function loadMetadata($name)
-    {
-        if (!$this->initialized) {
-            $this->initialize();
-        }
-
-        $loaded = array();
-
-        $parentClasses = $this->getParentClasses($name);
-        $parentClasses[] = $name;
-
-        // Move down the hierarchy of parent classes, starting from the topmost class
-        $parent = null;
-        $visited = array();
-        foreach ($parentClasses as $className) {
-            if (isset($this->loadedMetadata[$className])) {
-                $parent = $this->loadedMetadata[$className];
-                if ( $parent->isMappedSuperclass) {
-                    array_unshift($visited, $className);
-                }
-                continue;
-            }
-
-            $class = $this->newClassMetadataInstance($className);
-
-            $this->doLoadMetadata($class, $parent, $rootEntityFound, $nonSuperclassParents);
-            
-            $this->loadedMetadata[$className] = $class;
-            $this->completeMappingTypeValidation($className, $class);
-
-            if ( ! $class->isMappedSuperclass) {
-                $this->xmlToClassMap[$class->getXmlName()] = $className;
-            }
-
-            $parent = $class;
-
-            if ( $class->isMappedSuperclass) {
-                array_unshift($visited, $className);
-            }
-
-            $loaded[] = $className;
-        }
-
-        return $loaded;
-    }
-*/
     /**
      * Loads the metadata of the class in question and all it's ancestors whose metadata
      * is still not loaded.
@@ -360,6 +327,7 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
             $class->setIdentifier($parent->identifier);
             $class->setLifecycleCallbacks($parent->lifecycleCallbacks);
             $class->setChangeTrackingPolicy($parent->changeTrackingPolicy);
+            $class->parent = $parent->getName();
         }
     
         // Invoke driver

@@ -56,6 +56,12 @@ class ClassMetadata extends ClassMetadataInfo
      * @var object
      */
     private $prototype;
+    
+    /**
+     * The parent class for this class
+     * @var \Doctrine\OXM\Mapping\Driver\ClassMetadata
+     */
+    public $parent = NULL;
 
     /**
      * Initializes a new ClassMetadata instance that will hold the object-document mapping
@@ -208,7 +214,8 @@ class ClassMetadata extends ClassMetadataInfo
             'isRoot',
             'xmlName',
             'generatorType',
-            'idGenerator'
+            'idGenerator',
+            'parent',
         );
 
         // The rest of the metadata is only serialized if necessary.
