@@ -86,6 +86,8 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      * @var array
      */
     private $alternativeClassMap = array();
+    
+    private $allLoaded = FALSE;
 
     /**
      * @param Configuration $configuration
@@ -96,6 +98,8 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
     {
         $this->configuration = $configuration;
         $this->evm = $evm;
+        
+        $this->setCacheDriver($this->configuration->getMetadataCacheImpl()); // Private property of parent class
     }
 
     /**
@@ -105,13 +109,15 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      */
     public function getAllXmlNodes()
     {
-        if (!$this->initialized) {
-            $this->initialize();
+        if (empty($this->xmlToClassMap)) {
+            if (!$this->initialized) {
+                $this->initialize();
+            }
+        
+            // Load all metadata
+            $this->getAllMetadata();
         }
         
-        // Load all metadata
-        $this->getAllMetadata();
-
         return $this->xmlToClassMap;
     }
 
@@ -122,13 +128,15 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      */
     public function getAllWrapperXmlNodes()
     {
-        if (!$this->initialized) {
-            $this->initialize();
+        if (empty($this->wrapperXmlToClassMap)) {
+            if (!$this->initialized) {
+                 $this->initialize();
+            }
+        
+            // Load all metadata
+            $this->getAllMetadata();
         }
         
-        // Load all metadata
-        $this->getAllMetadata();
-
         return $this->wrapperXmlToClassMap;
     }
     
@@ -139,14 +147,61 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      */
     public function getAllAlternativeClasses()
     {
-    	if (!$this->initialized) {
-    		$this->initialize();
-    	}
+        if (empty($this->alternativeClassMap)) {
+    	    if (!$this->initialized) {
+    		    $this->initialize();
+        	}
     	
-    	// Load all metadata
-    	$this->getAllMetadata();
-    	
+        	// Load all metadata
+    	    $this->getAllMetadata();
+        }
+        
     	return $this->alternativeClassMap;
+    }
+    
+    public function getAllMaps() {
+        if (!$this->initialized) {
+            $this->initialize();
+        }
+         
+        // Load all metadata
+        $this->getAllMetadata();
+
+        return array(
+            $this->xmlToClassMap,
+            $this->wrapperXmlToClassMap,
+            $this->alternativeClassMap,
+        );
+    }
+    
+    public function getAllMetadata() {
+        static $mapKey = 'maps\$XMLCLASSMAPS';
+        
+        if ($this->allLoaded) {
+            return;
+        }
+        
+        $mapData = $this->getCacheDriver()->fetch($mapKey);
+        
+        if ( ! empty($mapData) ) {
+            $this->xmlToClassMap = $mapData['xmlToClassMap'];
+            $this->wrapperXmlToClassMap = $mapData['wrapperXmlToClassMap'];
+            $this->alternativeClassMap = $mapData['alternativeClassMap'];
+            
+            $result = TRUE;
+        } else {
+            $result = parent::getAllMetadata();
+        
+            $mapData = $this->getCacheDriver()->save($mapKey, array(
+                'xmlToClassMap' => $this->xmlToClassMap,
+                'wrapperXmlToClassMap' => $this->wrapperXmlToClassMap,
+                'alternativeClassMap' => $this->alternativeClassMap,
+            ));
+        }
+        
+        $this->allLoaded = TRUE;
+        
+        return $result;
     }
 
     /**
@@ -155,7 +210,6 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      */
     protected function initialize()
     {
-        $this->setCacheDriver($this->configuration->getMetadataCacheImpl()); // Private property of parent class
         $this->driver = $this->configuration->getMetadataDriverImpl();
 
         if (null === $this->evm) {

@@ -202,7 +202,7 @@ class Configuration
             AnnotationRegistry::registerFile(__DIR__ . '/Mapping/Driver/DoctrineAnnotations.php');
 
             $reader = new AnnotationReader();
-            $reader = new \Doctrine\Common\Annotations\CachedReader($reader, new ArrayCache());
+            $reader = new \Doctrine\Common\Annotations\CachedReader($reader, new ApcCache());
         } else if (version_compare(\Doctrine\Common\Version::VERSION, '2.3.0-DEV', '>=')) {
             // Register the ORM Annotations in the AnnotationRegistry
             // Done manually according to MongoDB ODM but that breaks existing code quickly
@@ -210,7 +210,7 @@ class Configuration
 
             $reader = new SimpleAnnotationReader();
             $reader->addNamespace('Doctrine\\OXM\\Mapping');
-            $reader = new \Doctrine\Common\Annotations\CachedReader($reader, new ArrayCache());
+            $reader = new \Doctrine\Common\Annotations\CachedReader($reader, new ApcCache());
         } else if (version_compare(\Doctrine\Common\Version::VERSION, '2.1.0-DEV', '>=')) {
             // Register the ORM Annotations in the AnnotationRegistry
             AnnotationRegistry::registerFile(__DIR__ . '/Mapping/Driver/DoctrineAnnotations.php');
@@ -220,7 +220,7 @@ class Configuration
             $reader->setIgnoreNotImportedAnnotations(true);
             $reader->setEnableParsePhpImports(false);
             $reader = new \Doctrine\Common\Annotations\CachedReader(
-                new \Doctrine\Common\Annotations\IndexedReader($reader), new ArrayCache()
+                new \Doctrine\Common\Annotations\IndexedReader($reader), new ApcCache()
             );
         } else {
             $reader = new AnnotationReader();

@@ -212,9 +212,17 @@ class XmlMarshaller implements Marshaller
      */
     private function doUnmarshal(XMLReader $cursor, $endElement = NULL, $classMetadata = NULL, $virtualNamespace = NULL)
     {
+        /*
         $allMappedXmlNodes = $this->classMetadataFactory->getAllXmlNodes();
         $allMappedWrapperXmlNodes = $this->classMetadataFactory->getAllWrapperXmlNodes();
-
+        */
+        
+        static $allMappedXmlNodes, $allMappedWrapperXmlNodes, $alternativeClasses;
+        
+        if (empty($allMappedXmlNodes)) {
+            list($allMappedXmlNodes, $allMappedWrapperXmlNodes, $alternativeClasses) = $this->classMetadataFactory->getAllMaps();
+        }
+        
         if ($cursor->nodeType !== XMLReader::ELEMENT && $cursor->nodeType !== XMLReader::CDATA) {
             throw MarshallerException::invalidMarshallerState($cursor);
 

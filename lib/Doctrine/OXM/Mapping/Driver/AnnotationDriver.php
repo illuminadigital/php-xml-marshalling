@@ -323,7 +323,7 @@ class AnnotationDriver implements DriverInterface
 
                 $sourceFile = realpath($file->getPathName());
                 require_once $sourceFile;
-                $includedFiles[] = $sourceFile;
+                $includedFiles[$sourceFile] = TRUE;
             }
         }
 
@@ -332,7 +332,7 @@ class AnnotationDriver implements DriverInterface
         foreach ($declared as $className) {
             $rc = new \ReflectionClass($className);
             $sourceFile = $rc->getFileName();
-            if (in_array($sourceFile, $includedFiles) && !$this->isTransient($className)) {
+            if (!empty($sourceFile) && array_key_exists($sourceFile, $includedFiles) && !$this->isTransient($className)) {
                 $classes[] = $className;
             }
         }
