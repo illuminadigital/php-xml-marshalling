@@ -76,6 +76,13 @@ class XmlMarshaller implements Marshaller
      * @var string
      */
     private $visited = array();
+    
+    /**
+     * Whether unknown elements should be handled (as plain objects)
+     * 
+     * @var boolean
+     */
+    private $allowUnknownElements = FALSE;
 
     /**
      * @param ClassMetadataFactory
@@ -157,6 +164,23 @@ class XmlMarshaller implements Marshaller
     {
         return $this->schemaVersion;
     }
+    
+    /**
+     * @param boolean $allow
+     * @return void
+     */
+    public function setAllowUnknownElements($allow)
+    {
+        $this->allowUnknownElements = (bool) $allow;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function getAllowUnknownElements()
+    {
+        return $this->allowUnknownElements;
+    }
 
     /**
      * @param string $streamUri
@@ -236,7 +260,11 @@ class XmlMarshaller implements Marshaller
             $isInWrapper = FALSE;
             
             if (!array_key_exists($elementName, $allMappedXmlNodes) && !array_key_exists($elementName, $allMappedWrapperXmlNodes) && !array_key_exists('*', $allMappedXmlNodes)) {
-	            throw MappingException::invalidMapping($elementName);
+                if ($this->allowUnknownElements) {
+                    return $this->doUnmarshalUnknownElement($cursor, $endElement, $classMetadata, $virtualNamespace);
+                } else {
+                    throw MappingException::invalidMapping($elementName);
+                }
 	        }
         
 	        if (array_key_exists($elementName, $allMappedXmlNodes)) {
@@ -382,7 +410,7 @@ class XmlMarshaller implements Marshaller
                         }
                     }
                 } elseif (array_key_exists($cursor->name, $allMappedXmlNodes) || array_key_exists($cursor->name, $allMappedWrapperXmlNodes)) {  // look for inherited child directly
-                	if (array_key_exists($cursor->name, $allMappedWrapperXmlNodes))
+                	if (array_key_exists($cursor->name, $allMappedWrapperXmlNodes) && isset($allMappedWrapperXmlNodes[$cursor->name][$elementName]) )
                 	{
                 		if ($allMappedWrapperXmlNodes[$cursor->name][$elementName] === NULL) {
                 			$childClassMetadata = NULL;
@@ -445,6 +473,9 @@ class XmlMarshaller implements Marshaller
                             $classMetadata->setFieldValue($mappedObject, $fieldName, $this->doUnmarshal($cursor, NULL, NULL, $namespace));
                         }
                     }
+                } elseif ($this->allowUnknownElements) {
+                    $elementName = $cursor->name;
+                    $mappedObject->$elementName = $this->doUnmarshalUnknownElement($cursor, $endElement, $classMetadata, $virtualNamespace);
                 }
             }
 
@@ -471,6 +502,38 @@ class XmlMarshaller implements Marshaller
         return $mappedObject;
     }
 
+    private function doUnmarshalUnknownElement(XMLReader $cursor, $endElement = NULL, $classMetadata = NULL, $virtualNamespace = NULL) {
+        $mappedObject = new \stdClass();
+        
+        $mappedObject->_name = $cursor->name;
+        
+        while ($cursor->moveToNextAttribute()) {
+            $mappedObject->_attrs[$cursor->name] = $cursor->value;
+        }
+        
+        while ($cursor->read() && $cursor->nodeType != XMLReader::END_ELEMENT) {
+            switch ($cursor->nodeType) {
+                case XMLReader::TEXT: 
+                case XMLReader::CDATA: 
+                    $mappedObject->_contents[] = $cursor->value;
+                    
+                    break;
+                    
+                case XMLReader::ELEMENT:
+                    $elementName = $cursor->name;
+                    $mappedObject->_contents[] = array(
+                        'name' => $elementName,
+                        'element' => $this->doUnmarshal($cursor, NULL, NULL, $virtualNamespace),
+                    );
+                    
+                    break;
+            }
+        }
+        
+        return $mappedObject;
+    }
+    
+    
     /**
      * @param object $mappedObject
      * @return string
@@ -516,15 +579,21 @@ class XmlMarshaller implements Marshaller
     private function doMarshal($mappedObject, WriterHelper $writer, $fieldMapping = NULL)
     {
         $className = get_class($mappedObject);
-        $classMetadata = $this->classMetadataFactory->getMetadataFor($className);
-
-        if (!$this->classMetadataFactory->hasMetadataFor($className)) {
-            throw MarshallerException::mappingNotFoundForClass($className);
+        try {
+            $classMetadata = $this->classMetadataFactory->getMetadataFor($className);
+        } catch (\Doctrine\OXM\Mapping\MappingException $e) {
+            $classMetadata = NULL;
         }
 
-        // PreMarshall Hook
-        if ($classMetadata->hasLifecycleCallbacks(Events::preMarshal)) {
-            $classMetadata->invokeLifecycleCallbacks(Events::preMarshal, $mappedObject);
+        if ( ! $classMetadata ) {
+            if ( ! $this->allowUnknownElements ) {
+                throw MarshallerException::mappingNotFoundForClass($className);
+            }
+        } else {
+            // PreMarshall Hook
+            if ($classMetadata->hasLifecycleCallbacks(Events::preMarshal)) {
+                $classMetadata->invokeLifecycleCallbacks(Events::preMarshal, $mappedObject);
+            }
         }
 
         if (isset($this->visited[spl_object_hash($mappedObject)])) {
@@ -533,6 +602,9 @@ class XmlMarshaller implements Marshaller
 
         $this->visited[spl_object_hash($mappedObject)] = true;
 
+        if ( ! $classMetadata ) {
+            return $this->doMarshalUnknownElement($mappedObject, $writer, $fieldMapping);
+        }
         
         $xmlName = $classMetadata->getXmlName();
         if (isset($fieldMapping['forceName']) && $fieldMapping['forceName'] && isset($fieldMapping['name']) && $fieldMapping['name'] != '*')
@@ -557,6 +629,10 @@ class XmlMarshaller implements Marshaller
             }
         }
 
+        if ($this->allowUnknownElements) {
+            $doneFields = array();
+        }
+        
         // do attributes
         if (array_key_exists(ClassMetadata::XML_ATTRIBUTE, $orderedMap)) {
             foreach ($orderedMap[ClassMetadata::XML_ATTRIBUTE] as $fieldMapping) {
@@ -571,6 +647,10 @@ class XmlMarshaller implements Marshaller
                 if ($fieldValue !== null || $classMetadata->isNullable($fieldName)) {
                     $this->writeAttribute($writer, $classMetadata, $fieldName, $fieldValue);
                 }
+                            
+                if ($this->allowUnknownElements) {
+                    $doneFields[$fieldName] = TRUE;
+                }
             }
         }
 
@@ -584,7 +664,7 @@ class XmlMarshaller implements Marshaller
             		continue;
             	}
 
-                $fieldName = $fieldMapping['fieldName'];
+            	$fieldName = $fieldMapping['fieldName'];
                 $fieldValue = $classMetadata->getFieldValue($mappedObject, $fieldName);
 
                 if ($classMetadata->isRequired($fieldName) && $fieldValue === null) {
@@ -601,6 +681,21 @@ class XmlMarshaller implements Marshaller
 	                    $this->writeElement($writer, $classMetadata, $fieldName, $fieldValue);
                 	}
                 }
+                
+                if ($this->allowUnknownElements) {
+                    $doneFields[$fieldName] = TRUE;
+                }
+            }
+        }
+        
+        // Do anything that still remains
+        if ($this->allowUnknownElements) {
+            foreach (get_object_vars($mappedObject) as $thisPropertyName => $thisProperty) {
+                if (isset($doneFields[$thisPropertyName])) {
+                    continue;
+                }
+                
+                $this->doMarshal($thisProperty, $writer);
             }
         }
 
@@ -609,6 +704,36 @@ class XmlMarshaller implements Marshaller
             $classMetadata->invokeLifecycleCallbacks(Events::postMarshal, $mappedObject);
         }
 
+        $writer->endElement();
+    }
+    
+    private function doMarshalUnknownElement($mappedObject, WriterHelper $writer, $fieldMapping = NULL) {
+        $className = get_class($mappedObject);
+        
+        if ($className != 'stdClass' || ! isset($mappedObject->_name)) {
+            // We can't handle this
+            throw MarshallerException::mappingNotFoundForClass($className);
+        }
+        
+        $writer->startElement($mappedObject->_name);
+        
+        if (isset($mappedObject->_attrs)) {
+            foreach ($mappedObject->_attrs as $attrName => $attrValue) {
+                $writer->writeAttribute($attrName, $attrValue);
+            }
+        }
+
+        if (isset($mappedObject->_contents)) {
+            foreach ($mappedObject->_contents as $content) {
+                if (is_array($content)) {
+                    // Some form of element
+                    $this->doMarshal($content['element'], $writer);
+                } else {
+                    $writer->writeValue($content);
+                }
+            }
+        }
+        
         $writer->endElement();
     }
 
@@ -691,6 +816,8 @@ class XmlMarshaller implements Marshaller
             } else {
                 $this->doMarshal($fieldValue, $writer, $mapping);
             }
+        } else if ($this->allowUnknownElements) {
+            $this->doMarshal($fieldValue, $writer, $mapping);
         }
     }
 }

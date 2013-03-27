@@ -444,4 +444,41 @@ class MarshallerTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('article for tag4', $otherTag4->article->name);
         $this->assertEquals('four', $otherTag4->name);
     }
+    
+    /**
+     * @test
+     */
+    public function itShouldHandleUnknownElements()
+    {
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>
+                    <article name="article one">
+                     <tag name="oxm">
+                         <unknownExtensionGroup attr1="bip">
+                             Tom
+                             <unknownExtension attr2="bap">
+                                 Jerry
+                                 <foo>bar</foo>
+                                 <tag name="xml" />
+                                 Mouse
+                             </unknownExtension>
+                         </unknownExtensionGroup>
+                     </tag>
+                     <tag name="xml" />
+                    </article>';
+        
+        $this->marshaller->setAllowUnknownElements(TRUE);
+        
+        $article1 = $this->marshaller->unmarshalFromString($xml);
+        $firstTag = $article1->tags[0];
+
+        $this->assertObjectHasAttribute('unknownExtensionGroup', $firstTag, 'Has unknownExtensionGroup');
+        $this->assertAttributeInstanceof('stdClass', 'unknownExtensionGroup', $firstTag, 'unknownExtensionGroup is a stdClass');
+        
+        $unknownExtensionGroup = $firstTag->unknownExtensionGroup;
+        $this->assertAttributeCount(1, '_attrs', $unknownExtensionGroup, 'unknownExtensionGroup has 1 attribute');
+        
+        // FIXME: Add in more tests
+        
+        $article1xml = $this->marshaller->marshalToString($article1);
+    }
 }
