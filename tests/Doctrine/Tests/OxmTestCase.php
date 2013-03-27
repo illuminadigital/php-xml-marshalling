@@ -87,6 +87,12 @@ class OxmTestCase extends \PHPUnit_Framework_TestCase
         if (!is_array($paths)) {
             $paths = array($paths);
         }
+        
+        foreach ($paths as $key => $path) {
+            if (substr($path, 0, 1) !== '/') {
+                $paths[$key] = __DIR__ . '/../../../' . $path;
+            }
+        }
 
         $config->setMetadataDriverImpl($config->newDefaultAnnotationDriver($paths));
         \Doctrine\OXM\Mapping\Driver\AnnotationDriver::registerAnnotationClasses();
