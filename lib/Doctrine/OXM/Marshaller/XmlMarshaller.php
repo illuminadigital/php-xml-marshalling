@@ -382,6 +382,15 @@ class XmlMarshaller implements Marshaller
                         } else {
                             $classMetadata->setFieldValue($mappedObject, $fieldName, $this->doUnmarshal($cursor, NULL, $childClassMetadata, $namespace));
                         }
+                    } elseif ($cursor->isEmptyElement) {
+                        // Don't move on just yet!
+                        $type = Type::getType($fieldMapping['type']);
+                        if ($classMetadata->isCollection($fieldName) || $isInWrapper) {
+                            $collectionElements[$fieldName][] = $type->convertToPHPValue($cursor->value);
+                        } else {
+                            $classMetadata->setFieldValue($mappedObject, $fieldName, $type->convertToPHPValue($cursor->value));
+                        }
+                        // Still don't move on as the loop will
                     } else {
                         // assume text element (dangerous?)
                         $cursor->read();
