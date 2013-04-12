@@ -567,7 +567,7 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
                 
                 if ($name == $classLocalName || $name == strtolower($classLocalName) 
                         || ucfirst($name) == $classLocalName 
-                        || $name == preg_replace('/[A-Z]/e', '"-" . strtolower("$1")', $classLocalName))
+                        || $name == preg_replace('/^-/', '', preg_replace('/[A-Z]/e', '"-" . strtolower("$1")', $classLocalName)))
                 {
                     return $class;
                 }
