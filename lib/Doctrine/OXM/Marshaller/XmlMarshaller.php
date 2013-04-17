@@ -272,12 +272,17 @@ class XmlMarshaller implements Marshaller
 	        } else {
 	        	$classes = $allMappedXmlNodes['*'];
 	        }
+	        
             if (count($classes) == 1) {
             	$namespaces = array_keys($classes);
             	$className = $classes[array_shift($namespaces)];
             } else {
             	// Should try to work out the correct namespace version here
-            	error_log('Scream: too many choices!');
+            	error_log('Scream: too many choices! Selected ${className} for ${elementName}');
+            	error_log(print_r($classes, TRUE));
+            	
+            	$namespaces = array_keys($classes);
+            	$className = $classes[array_shift($namespaces)];
             }
             
 		    $classMetadata = $this->classMetadataFactory->getMetadataFor($className);
