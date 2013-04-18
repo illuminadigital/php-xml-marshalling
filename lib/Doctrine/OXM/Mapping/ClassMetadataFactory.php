@@ -87,6 +87,14 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
      */
     private $alternativeClassMap = array();
     
+    /**
+     * Keys are the base class name
+     *
+     * @var array
+     */
+    private $attributesClassMap = array();
+    
+    
     private $allLoaded = FALSE;
 
     /**
@@ -171,6 +179,7 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
             $this->xmlToClassMap,
             $this->wrapperXmlToClassMap,
             $this->alternativeClassMap,
+            $this->attributesClassMap,
         );
     }
     
@@ -187,6 +196,7 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
             $this->xmlToClassMap = $mapData['xmlToClassMap'];
             $this->wrapperXmlToClassMap = $mapData['wrapperXmlToClassMap'];
             $this->alternativeClassMap = $mapData['alternativeClassMap'];
+            $this->attributesClassMap = $mapData['attributesClassMap'];
             
             $result = TRUE;
         } else {
@@ -196,6 +206,7 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
                 'xmlToClassMap' => $this->xmlToClassMap,
                 'wrapperXmlToClassMap' => $this->wrapperXmlToClassMap,
                 'alternativeClassMap' => $this->alternativeClassMap,
+                'attributesClassMap' => $this->attributesClassMap,
             ));
         }
         
@@ -580,5 +591,60 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
         }
         // else
         return FALSE;
+    }
+    
+    public function getAlternativeClassForAttributes($className, $namespace, $attributes, $defaultToBase = TRUE)
+    {
+        if (substr($className, 0, 1) == '\\') {
+            $className = substr($className, 1);
+        }
+        
+        if (empty($namespace)) {
+            $namespace = '-';
+        }
+        
+        if ($defaultToBase) {
+            $resultClass = $className;
+        } else {
+            $resultClass = FALSE;
+        }
+
+        if ( ! empty($this->attributesClassMap[$className]) 
+                && ! empty($this->attributesClassMap[$className][$namespace]) ) {
+            
+            $bestMatchCount = 0;
+            $numInputAttributes = count($attributes);
+            
+            foreach ($this->attributesClassMap[$className][$namespace] as $thisClassName => $attributeData ) {
+                $matchingAttributes = array_intersect_assoc($attributes, $attributeData);
+                
+                $numMatches = count($matchingAttributes);
+                $numThisAttributes = count($attributeData);
+                
+                if ($numMatches == min ($numInputAttributes, $numThisAttributes)) {
+                    return $thisClassName;
+                } else if ($numMatches > $bestMatchCount) {
+                    $resultClass = $thisClassName;
+                }
+            }
+        }
+        
+        return $resultClass;
+    }
+    
+    public function addAlternativeClassForAttributes($baseClassName, $namespace, $attributes, $actualClassName) {
+        if (empty($namespace)) {
+            $namespace = '-';
+        }
+        
+        if (substr($baseClassName, 0, 1) == '\\') {
+            $baseClassName = substr($baseClassName, 1);
+        }
+        
+        if (substr($actualClassName, 0, 1) == '\\') {
+            $actualClassName = substr($actualClassName, 1);
+        }
+        
+        $this->attributesClassMap[$baseClassName][$namespace][$actualClassName] = $attributes;
     }
 }

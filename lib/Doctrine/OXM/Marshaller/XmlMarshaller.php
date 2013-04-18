@@ -254,6 +254,8 @@ class XmlMarshaller implements Marshaller
 
         $elementName = $cursor->localName;
         
+        //if ($cursor->localName) { xdebug_break(); }
+        
         if ( ! empty($classMetadata)) {
             $isInWrapper = !empty($endElement);
         } else {
@@ -277,12 +279,37 @@ class XmlMarshaller implements Marshaller
             	$namespaces = array_keys($classes);
             	$className = $classes[array_shift($namespaces)];
             } else {
-            	// Should try to work out the correct namespace version here
-            	error_log('Scream: too many choices! Selected ${className} for ${elementName}');
-            	error_log(print_r($classes, TRUE));
-            	
-            	$namespaces = array_keys($classes);
-            	$className = $classes[array_shift($namespaces)];
+                // Should try to work out the correct namespace version here
+                
+                $attributes = array('-name' => $cursor->localName);
+                
+                if ($cursor->hasAttributes) {
+                    while ($cursor->moveToNextAttribute()) {
+                        $attributes[$cursor->name] = $cursor->value;
+                    }
+                    
+                    $cursor->moveToElement();
+                }
+                
+                foreach ($classes as $thisClass) {
+                    $className = $this->classMetadataFactory->getAlternativeClassForNamespace($thisClass, $virtualNamespace, FALSE);
+
+                    if ( ! $className ) {
+                        $className = $this->classMetadataFactory->getAlternativeClassForAttributes($thisClass, $virtualNamespace, $attributes, FALSE);
+                    }
+                    
+                    if ( ! $className ) {
+                        break;
+                    }
+                }
+                
+                if ( ! $className ) {
+                    $namespaces = array_keys($classes);
+                	$className = $classes[array_shift($namespaces)];
+                	
+                	error_log('Scream: too many choices! Selected ${className} for ${elementName}');
+                	error_log(print_r($classes, TRUE));
+                }
             }
             
 		    $classMetadata = $this->classMetadataFactory->getMetadataFor($className);
@@ -354,11 +381,11 @@ class XmlMarshaller implements Marshaller
                     	$childClass = NULL;
                     	
                      	if ( $inAnyMode ) {
-                     	    $childClass = $this->classMetadataFactory->getAlternativeClassForName($fieldMapping['type'], $cursor->localName, FALSE);
+                 	        $childClass = $this->classMetadataFactory->getAlternativeClassForNamespace($fieldMapping['type'], $namespace, FALSE);
                      	    
                      	    if ( ! $childClass )
                      	    {
-                     	        $childClass = $this->classMetadataFactory->getAlternativeClassForNamespace($fieldMapping['type'], $namespace, FALSE);
+                     	        $childClass = $this->classMetadataFactory->getAlternativeClassForName($fieldMapping['type'], $cursor->localName, FALSE);
                      	    }
                      	    
                      	    if ( ! $childClass )
