@@ -254,8 +254,6 @@ class XmlMarshaller implements Marshaller
 
         $elementName = $cursor->localName;
         
-        //if ($cursor->localName) { xdebug_break(); }
-        
         if ( ! empty($classMetadata)) {
             $isInWrapper = !empty($endElement);
         } else {
@@ -281,15 +279,8 @@ class XmlMarshaller implements Marshaller
             } else {
                 // Should try to work out the correct namespace version here
                 
-                $attributes = array('-name' => $cursor->localName);
-                
-                if ($cursor->hasAttributes) {
-                    while ($cursor->moveToNextAttribute()) {
-                        $attributes[$cursor->name] = $cursor->value;
-                    }
-                    
-                    $cursor->moveToElement();
-                }
+                $attributes = $this->getElementAttributes($cursor);
+                $attributes['-name'] = $cursor->localName;
                 
                 foreach ($classes as $thisClass) {
                     $className = $this->classMetadataFactory->getAlternativeClassForNamespace($thisClass, $virtualNamespace, FALSE);
@@ -401,12 +392,19 @@ class XmlMarshaller implements Marshaller
                      	} 
                      	
                      	if ( empty($childClass)) {
-                     		$childClass = $this->classMetadataFactory->getAlternativeClassForNamespace($fieldMapping['type'], $namespace);
+                     	    $attributes = $this->getElementAttributes($cursor);
+                     	    $attributes['-name'] = $cursor->localName;
+                     	    
+                     	    $childClass = $this->classMetadataFactory->getAlternativeClassForAttributes($fieldMapping['type'], $namespace, $attributes, FALSE);
+
+                     	    if ( ! $childClass ) {
+                         		$childClass = $this->classMetadataFactory->getAlternativeClassForNamespace($fieldMapping['type'], $namespace);
+                     	    }
                      	}
                      	
                      	$childClassMetadata = $this->classMetadataFactory->getMetadataFor($childClass);
                     	 
-                        if ($classMetadata->hasFieldWrapping($fieldName)) {
+                        if ($classMetadata->hasFieldWrapping($fieldName) && ! $isInWrapper) {
                             $cursor->moveToElement();
                             $collectionElements[$fieldName] = $this->doUnmarshal($cursor, $fieldName, $classMetadata, $namespace);
                         } elseif ($classMetadata->isCollection($fieldName) || $isInWrapper) {
@@ -483,9 +481,11 @@ class XmlMarshaller implements Marshaller
                     foreach ($classMetadata->getFieldMappings() as $fieldMapping) {
                     	if (isset($allMappedXmlNodes[$cursor->name]) && $fieldMapping['type'] == $allMappedXmlNodes[$cursor->name]) {
                     		$fieldName = $fieldMapping['fieldName'];
+                    		break;
                     	} elseif (isset($allMappedWrapperXmlNodes[$cursor->name][$elementName]) && $fieldMapping['type'] == $allMappedWrapperXmlNodes[$cursor->name][$elementName]) {
                     		$fieldName = $fieldMapping['fieldName'];
                     		$isWrapper = TRUE;
+                    		break;
                     	} else {
                             // Walk parent tree
                     		if ( ! isset($childClassMetadata) ) {
@@ -494,6 +494,7 @@ class XmlMarshaller implements Marshaller
                             foreach ($childClassMetadata->getParentClasses() as $parentClass) {
                             	if ($fieldMapping['type'] == $parentClass) {
                                     $fieldName = $fieldMapping['fieldName'];
+                                    break 2;
                                 }
                             }
                         }
@@ -526,7 +527,7 @@ class XmlMarshaller implements Marshaller
                         $classMetadata->setFieldValue($mappedObject, $fieldName, $elements);
                     }
                 } else {
-                    if ( ! empty($collectionElements[$fieldName]) && ! empty($collectionElements[$fieldName][0])) {
+                    if ( ! empty($collectionElements[$fieldName]) && (is_array($collectionElements[$fieldName]) && ! empty($collectionElements[$fieldName][0]))) {
                         $mappedObject = $collectionElements[$fieldName];
                     }
                 }
@@ -541,6 +542,24 @@ class XmlMarshaller implements Marshaller
         }
 
         return $mappedObject;
+    }
+    
+    private function getElementAttributes(XMLReader $cursor) {
+        if ($cursor->nodeType !== XMLReader::ELEMENT) {
+            return FALSE;
+        }
+        
+        $attributes = array();
+        
+        if ($cursor->hasAttributes) {
+            while ($cursor->moveToNextAttribute()) {
+                $attributes[$cursor->name] = $cursor->value;
+            }
+        
+            $cursor->moveToElement();
+        }
+        
+        return $attributes;
     }
 
     private function doUnmarshalUnknownElement(XMLReader $cursor, $endElement = NULL, $classMetadata = NULL, $virtualNamespace = NULL) {
