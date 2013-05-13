@@ -621,10 +621,9 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
                 $numMatches = count($matchingAttributes);
                 $numThisAttributes = count($attributeData);
                 
-                if ($numMatches == min ($numInputAttributes, $numThisAttributes)) {
-                    return $thisClassName;
-                } else if ($numMatches > $bestMatchCount) {
+                if ($numMatches > $bestMatchCount) {
                     $resultClass = $thisClassName;
+                    $bestMatchCount = $numMatches;
                 }
             }
         }
