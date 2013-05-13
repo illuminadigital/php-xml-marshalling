@@ -448,7 +448,8 @@ class XmlMarshaller implements Marshaller
                             $classMetadata->setFieldValue($mappedObject, $fieldName, $type->convertToPHPValue($cursor->value));
                         }
                     }
-                } elseif (array_key_exists($cursor->name, $allMappedXmlNodes) || array_key_exists($cursor->name, $allMappedWrapperXmlNodes)) {  // look for inherited child directly
+                } elseif (array_key_exists($cursor->name, $allMappedXmlNodes) 
+                        || (array_key_exists($cursor->name, $allMappedWrapperXmlNodes) && isset($allMappedWrapperXmlNodes[$cursor->name][$elementName])) ) {  // look for inherited child directly
                 	if (array_key_exists($cursor->name, $allMappedWrapperXmlNodes) && isset($allMappedWrapperXmlNodes[$cursor->name][$elementName]) )
                 	{
                 		if ($allMappedWrapperXmlNodes[$cursor->name][$elementName] === NULL) {
@@ -457,7 +458,7 @@ class XmlMarshaller implements Marshaller
 	                		$childClassMetadata = $this->classMetadataFactory->getMetadataFor($allMappedWrapperXmlNodes[$cursor->name][$elementName]);
                 		}
                 	}
-                	else
+                	elseif (isset($allMappedXmlNodes[$cursor->name]))
                 	{
                 		if (is_array($allMappedXmlNodes[$cursor->name]))
                 		{
