@@ -613,6 +613,8 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
                 && ! empty($this->attributesClassMap[$className][$namespace]) ) {
             
             $bestMatchCount = 0;
+            $bestMatchMaxCount = 0;
+            
             $numInputAttributes = count($attributes);
             
             foreach ($this->attributesClassMap[$className][$namespace] as $thisClassName => $attributeData ) {
@@ -621,9 +623,18 @@ class ClassMetadataFactory extends AbstractClassMetadataFactory
                 $numMatches = count($matchingAttributes);
                 $numThisAttributes = count($attributeData);
                 
-                if ($numMatches > $bestMatchCount) {
+                /*
+                 * Take an alternative IF:
+                 * - the number of matches is better than the best so for
+                 * OR
+                 * - we matched all possible attributes
+                 * - AND we matched as many as the best match so far
+                 * - AND the best match so far didn't match all the attributes it could have done
+                 */
+                if ($numMatches > $bestMatchCount || ($numMatches == $numThisAttributes && $numMatches == $bestMatchCount && $bestMatchCount < $bestMatchMaxCount)) {
                     $resultClass = $thisClassName;
                     $bestMatchCount = $numMatches;
+                    $bestMatchMaxCount = $numThisAttributes;
                 }
             }
         }
